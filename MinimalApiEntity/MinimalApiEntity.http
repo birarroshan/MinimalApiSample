@@ -1,0 +1,44 @@
+@MinimalApiEntity_HostAddress = http://localhost:5295
+
+### Pizza GETs use Redis cache-aside with a 60-second absolute TTL.
+### POST invalidates the list and exact-name cache after commit. Concurrent fills/external writes can be stale until expiry.
+### Missing names are not cached. Redis failures are logged and fall back to PostgreSQL.
+### Reads allow 32 active + 100 queued requests per process; overflow returns 429.
+### Local Redis: 127.0.0.1:56380 (development only, no auth, loopback binding).
+### Start local services with scripts\Start-Postgres.ps1. Production needs a secured Redis connection and a prefix unique to its database/environment.
+GET {{MinimalApiEntity_HostAddress}}/pizza
+Accept: application/json
+
+###
+
+GET {{MinimalApiEntity_HostAddress}}/pizza/Margherita
+Accept: application/json
+
+### Unknown names return 404
+
+GET {{MinimalApiEntity_HostAddress}}/pizza/NonexistentPizza
+Accept: application/json
+
+###
+
+### POST: queue overflow or a 5-second database lock wait returns 429 with Retry-After.
+### The queue holds at most 100 requests per API process, not 100 across all instances.
+POST {{MinimalApiEntity_HostAddress}}/pizza
+Content-Type: application/json
+Accept: application/json
+
+{
+  "name": "Margherita",
+  "description": "Tomato, mozzarella, and basil"
+}
+
+### Missing or blank names return 400
+
+POST {{MinimalApiEntity_HostAddress}}/pizza
+Content-Type: application/json
+
+{
+  "name": " "
+}
+
+###
